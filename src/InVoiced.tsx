@@ -1,8 +1,8 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 
 const SK = { invoices:"iv_inv_v3", folders:"iv_folders_v3", trends:"iv_trends_v3", clientInvoices:"iv_clinv_v3", clients:"iv_clients_v3", bankRows:"iv_bank_v3", company:"iv_company_v3", theme:"iv_theme_v3", onboarding:"iv_onboard_v3" };
-const safeGet = async k => { try { const r = await window.storage.get(k); return r ? JSON.parse(r.value) : null; } catch { return null; } };
-const safeSet = async (k, v) => { try { await window.storage.set(k, JSON.stringify(v)); } catch(e) { console.warn(e); } };
+const safeGet = async k => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : null; } catch { return null; } };
+const safeSet = async (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch(e) { console.warn(e); } };
 
 const fileStore = {};
 const storeFile = (id, b64, mime, name) => { fileStore[id] = { base64:b64, mimeType:mime, fileName:name }; };
@@ -499,7 +499,7 @@ function DueBadge({dueDate,status,C}){
 }
 
 // ── Main App ──────────────────────────────────────────────────────────────
-export default function App(){
+export default function InVoiced(){
   const [darkMode,setDarkMode]=useState(false);
   const C=useMemo(()=>getC(darkMode),[darkMode]);
 
@@ -678,8 +678,7 @@ export default function App(){
   };
 
   const callAI=async(messages,sys)=>{
-    const r=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:1000,...(sys?{system:sys}:{}),messages})});
-    const d=await r.json();return d.content?.map(x=>x.text||"").join("")||"";
+    throw new Error("Funcionalidade de IA não disponível nesta versão.");
   };
 
   const processSingleFile=async file=>{
@@ -890,11 +889,8 @@ export default function App(){
 
   const sendChat=async()=>{
     if(!chatIn.trim()||chatLoad)return;
-    const q=chatIn.trim();setChatIn("");setChatLoad(true);setChatMsgs(m=>[...m,{role:"user",text:q}]);
-    const ctx=`NIF:${company.nif||"N/D"} Nome:${company.name||"N/D"}. FORN:${fmt(totFat)} faturado,${fmt(totPag)} pago,${fmt(totPend)} pendente,${venc.length} vencidas. CLI:${fmt(totEmit)} emitido,${fmt(totRec)} recebido. CF30:${fmt(cf30.net)} CF60:${fmt(cf60.net)} CF90:${fmt(cf90.net)}. Pastas:${folders.map(f=>f.name).join(",")||"nenhuma"}.`;
-    try{const r=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:400,system:"Assistente financeiro InVoiced para PME portuguesa. Responde em português europeu, conciso.",messages:[{role:"user",content:ctx+"\nPergunta: "+q}]})});const d=await r.json();setChatMsgs(m=>[...m,{role:"ai",text:d.content?.map(x=>x.text||"").join("")||"Sem resposta."}]);}
-    catch{setChatMsgs(m=>[...m,{role:"ai",text:"Erro ao processar."}]);}
-    setChatLoad(false);
+    const q=chatIn.trim();setChatIn("");
+    setChatMsgs(m=>[...m,{role:"user",text:q},{role:"ai",text:"O assistente de IA será adicionado em breve. Por agora podes consultar os dados diretamente nos separadores."}]);
   };
 
   // ── Filter helpers ─────────────────────────────────────────────────────
@@ -1240,6 +1236,7 @@ export default function App(){
                 </div>
               </Card>
             )}
+            {awaitingApproval.length>0&&(
               <Card C={C} sx={{border:"1px solid "+C.cyanBord,background:C.cyanSoft}}>
                 <h3 style={{margin:"0 0 12px",fontSize:13,fontWeight:700,color:C.cyan}}>🔔 Aguardam aprovação ({awaitingApproval.length})</h3>
                 {awaitingApproval.map(inv=>(
