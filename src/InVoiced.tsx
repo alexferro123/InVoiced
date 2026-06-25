@@ -1,4 +1,7 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import DashboardPage from "./pages/DashboardPage";
+import PastasPage from "./pages/PastasPage";
+import AssistentePage from "./pages/AssistentePage";
 
 const SK = { invoices:"iv_inv_v3", folders:"iv_folders_v3", trends:"iv_trends_v3", clientInvoices:"iv_clinv_v3", clients:"iv_clients_v3", bankRows:"iv_bank_v3", company:"iv_company_v3", theme:"iv_theme_v3", onboarding:"iv_onboard_v3" };
 const safeGet = async k => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : null; } catch { return null; } };
@@ -1119,157 +1122,15 @@ export default function InVoiced(){
           <CalendarView calMonth={calMonth} setCalMonth={setCalMonth} nonCr={nonCr} clientInvs={clientInvs} C={C} setDetailInv={setDetailInv} setDtab={setDtab}/>
         )}
         {tab==="dashboard"&&!calView&&(
-          <div style={{display:"flex",flexDirection:"column",gap:16}}>
-            {invoices.length===0&&clientInvs.length===0&&(
-              <div style={{background:"linear-gradient(135deg,rgba(155,89,245,.1),rgba(34,211,238,.1))",border:"1px solid "+C.purpleBord,borderRadius:20,padding:"32px"}}>
-                <p style={{margin:"0 0 4px",fontWeight:900,fontSize:20,background:C.grad,WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>Bem-vindo ao InVoiced 2.0</p>
-                <p style={{margin:"0 0 20px",fontSize:13,color:C.textMuted}}>Gestão de faturas com IA. Começa em 3 passos:</p>
-                <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:14}}>
-                  {[
-                    {step:"1",icon:"⚙️",title:"Define o teu NIF",desc:"Para validar faturas de clientes.",action:()=>setShowSettings(true),cta:"Definir NIF"},
-                    {step:"2",icon:"📁",title:"Cria pastas",desc:"A IA reconhece os nomes automaticamente.",action:()=>setTab("pastas"),cta:"Criar pasta"},
-                    {step:"3",icon:"📄",title:"Adiciona faturas",desc:"Carrega PDFs ou preenche manualmente via 'Carregar'.",action:()=>setShowUploadMenu(true),cta:"Adicionar"},
-                  ].map(s=>(
-                    <div key={s.step} style={{background:C.bgCard,borderRadius:14,padding:"18px",border:"1px solid "+C.border}}>
-                      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
-                        <div style={{width:24,height:24,borderRadius:"50%",background:C.grad,color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:800}}>{s.step}</div>
-                        <span style={{fontSize:20}}>{s.icon}</span>
-                      </div>
-                      <p style={{margin:"0 0 6px",fontWeight:700,fontSize:13,color:C.textPrimary}}>{s.title}</p>
-                      <p style={{margin:"0 0 14px",fontSize:12,color:C.textMuted,lineHeight:1.5}}>{s.desc}</p>
-                      <button onClick={s.action} style={{background:C.grad,color:"#fff",border:"none",borderRadius:8,padding:"7px 16px",fontSize:12,fontWeight:700,cursor:"pointer"}}>{s.cta}</button>
-                    </div>
-                  ))}
-                </div>
-                <button onClick={()=>setOnboardStep(0)} style={{marginTop:14,background:"none",border:"1px solid "+C.purpleBord,borderRadius:8,padding:"6px 16px",fontSize:12,color:C.purple,fontWeight:600,cursor:"pointer"}}>🎯 Iniciar tour guiado</button>
-              </div>
-            )}
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
-              <div>
-                <p style={{fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:.7,color:C.textMuted,margin:"0 0 10px"}}>💸 Fornecedores</p>
-                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-                  <KpiCard C={C} label="Total Faturado" icon="€" val={fmt(totFat)} sub={nonCr.length+" faturas"} glow/>
-                  <KpiCard C={C} label="Total Pago" icon="↑" val={fmt(totPag)} sub={paidCt+" faturas"} color={C.purple}/>
-                  <KpiCard C={C} label="Pendente" icon="⏳" val={fmt(totPend)} sub={pendCt+" faturas"} color={C.amber}/>
-                  <KpiCard C={C} label="Vencidas" icon="⚠" val={fmt(venc.reduce((s,i)=>s+(i.amount||0),0))} sub={venc.length+" faturas"} color={C.red}/>
-                </div>
-              </div>
-              <div>
-                <p style={{fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:.7,color:C.textMuted,margin:"0 0 10px"}}>💰 Clientes</p>
-                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-                  <KpiCard C={C} label="Total Emitido" icon="📤" val={fmt(totEmit)} sub={clientInvs.length+" faturas"}/>
-                  <KpiCard C={C} label="Recebido" icon="↓" val={fmt(totRec)} sub={clientInvs.filter(i=>i.status==="recebida").length+" faturas"} color={C.green}/>
-                  <KpiCard C={C} label="Por Receber" icon="⏳" val={fmt(totPRec)} sub={clientInvs.filter(i=>i.status!=="recebida").length+" faturas"} color={C.amber}/>
-                  <KpiCard C={C} label="Em Atraso" icon="⚠" val={fmt(clVenc.reduce((s,i)=>s+(i.amount||0),0))} sub={clVenc.length+" faturas"} color={C.red}/>
-                </div>
-              </div>
-            </div>
-            <Card C={C}>
-              <h3 style={{margin:"0 0 12px",fontSize:14,fontWeight:700,color:C.textPrimary}}>💰 Cash flow projetado</h3>
-              <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10}}>
-                {[{label:"Próximos 30d",cf:cf30},{label:"Dias 31-60",cf:cf60},{label:"Dias 61-90",cf:cf90}].map(({label,cf})=>(
-                  <div key={label} style={{background:cf.net>=0?C.greenSoft:C.redSoft,borderRadius:12,padding:"14px 16px",border:"1px solid "+(cf.net>=0?C.greenBord:C.redBord)}}>
-                    <p style={{margin:"0 0 4px",fontSize:11,fontWeight:700,color:C.textMuted,textTransform:"uppercase"}}>{label}</p>
-                    <p style={{margin:"0 0 4px",fontSize:20,fontWeight:800,color:cf.net>=0?C.green:C.red}}>{cf.net>=0?"+":""}{fmt(cf.net)}</p>
-                    <div style={{fontSize:11,color:C.textMuted}}><div>Saídas: {fmt(cf.out)}</div><div>Entradas: {fmt(cf.inn)}</div></div>
-                  </div>
-                ))}
-              </div>
-            </Card>
-            {upcoming.length>0&&(
-              <Card C={C}>
-                <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:14}}>
-                  <h3 style={{margin:0,fontSize:13,fontWeight:700,color:C.textPrimary}}>🗓️ A vencer esta semana</h3>
-                  <span style={{marginLeft:"auto",background:C.amberSoft,color:C.amber,border:"1px solid "+C.amberBord,borderRadius:99,padding:"2px 8px",fontSize:11,fontWeight:700}}>{upcoming.length}</span>
-                </div>
-                {upcoming.map(inv=>{
-                  const isCl=!!inv.clientName;
-                  const dd=parseD(inv.dueDate);
-                  const dl=dd?Math.ceil((dd-now)/86400000):null;
-                  const dlColor=dl===0?C.red:dl<=2?C.amber:C.textMuted;
-                  const dlBg=dl===0?C.redSoft:dl<=2?C.amberSoft:C.bgElevated;
-                  const dlBord=dl===0?C.redBord:dl<=2?C.amberBord:C.border;
-                  return(
-                    <div key={inv.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0",borderBottom:"1px solid "+C.border,gap:10}}>
-                      <div style={{display:"flex",alignItems:"center",gap:8,flex:1,minWidth:0}}>
-                        <div style={{width:28,height:28,borderRadius:7,background:isCl?C.cyanSoft:C.bgElevated,border:"1px solid "+(isCl?C.cyanBord:C.border),display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,flexShrink:0}}>{isCl?"🏷️":"🏢"}</div>
-                        <div style={{minWidth:0}}>
-                          <p style={{margin:0,fontSize:13,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",color:C.textPrimary}}>{isCl?inv.clientName:inv.supplier}</p>
-                          <p style={{margin:0,fontSize:11,color:C.textMuted}}>{inv.invoiceNum} · {inv.dueDate}</p>
-                        </div>
-                      </div>
-                      <div style={{display:"flex",alignItems:"center",gap:8,flexShrink:0}}>
-                        <span style={{fontSize:11,fontWeight:700,color:dlColor,background:dlBg,border:"1px solid "+dlBord,borderRadius:6,padding:"2px 7px"}}>{dl===0?"Hoje":dl===1?"Amanhã":"em "+dl+"d"}</span>
-                        <span style={{fontSize:14,fontWeight:800,color:C.textPrimary}}>{fmt(inv.amount)}</span>
-                        <Toggle C={C} on={false} onToggle={()=>isCl?updClInv(inv.id,{status:"recebida",payDate:todayStr()}):updInv(inv.id,{status:"paga",wfStatus:"paga",paidAt:todayStr()})} labelOn={isCl?"Recebido":"Pago"} labelOff={isCl?"Receber":"Pagar"}/>
-                      </div>
-                    </div>
-                  );
-                })}
-              </Card>
-            )}
-            {dueSoonAlerts.length>0&&(
-              <Card C={C} sx={{border:"1px solid "+C.amberBord,background:C.amberSoft}}>
-                <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:14}}>
-                  <span style={{fontSize:18}}>🔔</span>
-                  <h3 style={{margin:0,fontSize:13,fontWeight:700,color:C.textPrimary}}>Lembretes de vencimento</h3>
-                  <span style={{marginLeft:"auto",background:C.amber,color:"#fff",borderRadius:99,padding:"2px 9px",fontSize:11,fontWeight:700}}>{dueSoonAlerts.length}</span>
-                </div>
-                <div style={{display:"flex",flexDirection:"column",gap:6}}>
-                  {dueSoonAlerts.map((inv,i)=>{
-                    const od=inv._daysLeft<0;
-                    const isCl=inv._type==="cli";
-                    const dlColor=od||inv._daysLeft===0?C.red:inv._daysLeft<=3?C.amber:C.cyan;
-                    const dlLabel=od?`Vencida há ${-inv._daysLeft}d`:inv._daysLeft===0?"Hoje":inv._daysLeft===1?"Amanhã":`em ${inv._daysLeft}d`;
-                    return(
-                      <div key={i} style={{display:"flex",alignItems:"center",gap:10,background:C.bgCard,borderRadius:10,padding:"10px 14px",border:"1px solid "+(od?C.redBord:C.border)}}>
-                        <span style={{fontSize:16,flexShrink:0}}>{isCl?"🏷️":"🏢"}</span>
-                        <div style={{flex:1,minWidth:0}}>
-                          <p style={{margin:0,fontSize:13,fontWeight:600,color:C.textPrimary,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{isCl?inv.clientName:inv.supplier}</p>
-                          <p style={{margin:0,fontSize:11,color:C.textMuted}}>{inv.invoiceNum} · {fmt(inv.amount)}</p>
-                        </div>
-                        <span style={{fontSize:12,fontWeight:800,color:dlColor,background:od?C.redSoft:C.bgElevated,borderRadius:7,padding:"3px 10px",border:"1px solid "+(od?C.redBord:C.border),flexShrink:0}}>{dlLabel}</span>
-                        <Toggle C={C} on={false} onToggle={()=>isCl?updClInv(inv.id,{status:"recebida",payDate:todayStr()}):updInv(inv.id,{status:"paga",wfStatus:"paga",paidAt:todayStr()})} labelOn={isCl?"Recebido":"Pago"} labelOff={isCl?"Receber":"Pagar"}/>
-                      </div>
-                    );
-                  })}
-                </div>
-              </Card>
-            )}
-            {awaitingApproval.length>0&&(
-              <Card C={C} sx={{border:"1px solid "+C.cyanBord,background:C.cyanSoft}}>
-                <h3 style={{margin:"0 0 12px",fontSize:13,fontWeight:700,color:C.cyan}}>🔔 Aguardam aprovação ({awaitingApproval.length})</h3>
-                {awaitingApproval.map(inv=>(
-                  <div key={inv.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0",borderBottom:"1px solid "+C.cyanBord,gap:10}}>
-                    <div>
-                      <p style={{margin:0,fontSize:13,fontWeight:600,color:C.textPrimary}}>{inv.supplier}</p>
-                      <p style={{margin:0,fontSize:11,color:C.textMuted}}>{inv.invoiceNum} · {fmt(inv.amount)}</p>
-                    </div>
-                    <div style={{display:"flex",gap:8}}>
-                      <button onClick={()=>updInv(inv.id,{wfStatus:"aprovada",status:"aprovada"})} style={{background:C.green,color:"#fff",border:"none",borderRadius:8,padding:"5px 12px",fontSize:12,fontWeight:700,cursor:"pointer"}}>✓ Aprovar</button>
-                      <button onClick={()=>updInv(inv.id,{wfStatus:"pendente",status:"pendente"})} style={{background:C.redSoft,color:C.red,border:"1px solid "+C.redBord,borderRadius:8,padding:"5px 12px",fontSize:12,fontWeight:700,cursor:"pointer"}}>✕ Rejeitar</button>
-                    </div>
-                  </div>
-                ))}
-              </Card>
-            )}
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:14}}>
-              <PieSection pieFilter={pieFilter} setPieFilter={setPieFilter} pieData={pieData} C={C}/>
-              <Card C={C}>
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
-                  <h3 style={{margin:0,fontSize:13,fontWeight:700,color:C.textPrimary}}>📊 Entradas/Saídas</h3>
-                  <select value={chartFilter} onChange={e=>setChartFilter(e.target.value)} style={{fontSize:10,borderRadius:7,border:"1px solid "+C.border,padding:"3px 7px",background:C.bgElevated,color:C.textSecond,cursor:"pointer"}}>
-                    <option value="pastas">Por pasta</option><option value="fornecedores">Por fornecedor</option><option value="clientes">Por cliente</option>
-                  </select>
-                </div>
-                <BarChart data={barData(chartFilter)} C={C}/>
-              </Card>
-              <Card C={C}>
-                <h3 style={{margin:"0 0 12px",fontSize:13,fontWeight:700,color:C.textPrimary}}>📅 Últimos 6 meses</h3>
-                <BarChart data={monthChart()} C={C}/>
-              </Card>
-            </div>
-          </div>
+          <DashboardPage
+            C={C} nonCr={nonCr} clientInvs={clientInvs} folders={folders} invoices={invoices} company={company}
+            venc={venc} clVenc={clVenc} cf30={cf30} cf60={cf60} cf90={cf90}
+            totFat={totFat} totPag={totPag} totPend={totPend} totEmit={totEmit} totRec={totRec} totPRec={totPRec}
+            paidCt={paidCt} pendCt={pendCt} awaitingApproval={awaitingApproval}
+            updInv={updInv} updClInv={updClInv}
+            setShowSettings={setShowSettings} setTab={setTab} setDetailInv={setDetailInv} setDtab={setDtab}
+            setShowUploadMenu={setShowUploadMenu} setOnboardStep={setOnboardStep}
+          />
         )}
 
         {/* ── FORNECEDORES ── */}
@@ -1487,48 +1348,12 @@ export default function InVoiced(){
 
         {/* ── PASTAS ── */}
         {tab==="pastas"&&(
-          <Card C={C}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
-              <div>
-                <h3 style={{margin:0,fontSize:14,fontWeight:700,color:C.textPrimary}}>As tuas pastas</h3>
-                <p style={{margin:"4px 0 0",fontSize:12,color:C.textMuted}}>Os nomes são usados pela IA para associar faturas automaticamente.</p>
-              </div>
-              <Btn C={C} v="primary" onClick={()=>setShowAddFolder(true)}>+ Nova pasta</Btn>
-            </div>
-            {folders.length===0?(
-              <div style={{textAlign:"center",padding:"2rem",background:C.bgElevated,borderRadius:12,border:"2px dashed "+C.border}}>
-                <p style={{fontSize:32,margin:"0 0 8px"}}>📁</p>
-                <p style={{fontSize:14,fontWeight:600,color:C.textPrimary,margin:"0 0 4px"}}>Ainda não tens pastas</p>
-                <p style={{fontSize:12,color:C.textMuted,margin:0}}>Ex: "Contabilidade", "EDP", "Obras 2025"</p>
-              </div>
-            ):(
-              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:10}}>
-                {folders.map(f=>{
-                  const fInvs=nonCr.filter(i=>i.folderId===f.id),fCl=clientInvs.filter(i=>i.folderId===f.id);
-                  const total=[...fInvs,...fCl].reduce((s,i)=>s+(i.amount||0),0);
-                  const paid=fInvs.filter(i=>i.status==="paga").reduce((s,i)=>s+(i.amount||0),0)+fCl.filter(i=>i.status==="recebida").reduce((s,i)=>s+(i.amount||0),0);
-                  const col=f.color||FOLDER_COLORS[0],cnt=fInvs.length+fCl.length;
-                  return(
-                    <div key={f.id} style={{background:col.bg,border:"1px solid "+col.border,borderRadius:14,padding:"16px",display:"flex",flexDirection:"column",gap:10}}>
-                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
-                        <span style={{fontSize:26}}>{f.icon}</span>
-                        <button onClick={()=>setConfirmDel({msg:`Apagar pasta "${f.name}"?`,fn:()=>deleteFolder(f.id)})} style={{background:"rgba(0,0,0,.15)",border:"none",cursor:"pointer",fontSize:12,color:col.text,padding:"3px 7px",borderRadius:6}}>✕</button>
-                      </div>
-                      <div>
-                        <p style={{margin:"0 0 3px",fontWeight:700,fontSize:14,color:col.text}}>{f.name}</p>
-                        <p style={{margin:0,fontSize:11,color:col.text,opacity:.7}}>{cnt} fatura{cnt!==1?"s":""} · {fmt(total)}</p>
-                      </div>
-                      {total>0&&<div style={{fontSize:10,display:"flex",gap:8}}><span style={{color:"#4ADE80",fontWeight:600}}>{fmt(paid)}</span>{total-paid>0&&<span style={{color:C.amber,fontWeight:600}}>pend. {fmt(total-paid)}</span>}</div>}
-                      <div style={{display:"flex",gap:6}}>
-                        {fInvs.length>0&&<button onClick={()=>{setFFolder(String(f.id));setTab("fornecedores");}} style={{flex:1,background:"rgba(0,0,0,.15)",border:"none",borderRadius:7,padding:"5px",fontSize:11,fontWeight:600,color:col.text,cursor:"pointer"}}>🏢 {fInvs.length}</button>}
-                        {fCl.length>0&&<button onClick={()=>setTab("clientes")} style={{flex:1,background:"rgba(0,0,0,.15)",border:"none",borderRadius:7,padding:"5px",fontSize:11,fontWeight:600,color:col.text,cursor:"pointer"}}>🏷️ {fCl.length}</button>}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </Card>
+          <PastasPage
+            C={C} folders={folders} nonCr={nonCr} clientInvs={clientInvs}
+            setConfirmDel={setConfirmDel} deleteFolder={deleteFolder}
+            setShowAddFolder={setShowAddFolder} setTab={setTab} setFFolder={setFFolder}
+            newFolder={newFolder} setNewFolder={setNewFolder} addFolder={addFolder}
+          />
         )}
 
         {/* ── RECONCILIAÇÃO ── */}
@@ -1633,56 +1458,12 @@ export default function InVoiced(){
 
         {/* ── ASSISTENTE ── */}
         {tab==="assistente"&&(
-          <div style={{display:"grid",gridTemplateColumns:"1fr 280px",gap:14,alignItems:"start"}}>
-            <Card C={C} sx={{padding:0,overflow:"hidden"}}>
-              <div style={{padding:"16px 20px",borderBottom:"1px solid "+C.border,display:"flex",alignItems:"center",gap:10,background:"linear-gradient(135deg,rgba(155,89,245,.1),rgba(34,211,238,.1))"}}>
-                <div style={{width:36,height:36,borderRadius:10,background:C.grad,display:"flex",alignItems:"center",justifyContent:"center"}}><span style={{color:"#fff",fontSize:17,fontWeight:900,fontStyle:"italic"}}>N</span></div>
-                <div>
-                  <p style={{margin:0,fontWeight:800,fontSize:14,background:C.grad,WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>Assistente InVoiced</p>
-                  <p style={{margin:0,fontSize:11,color:C.green}}>● Online · Ctrl+K</p>
-                </div>
-              </div>
-              <div style={{height:380,overflowY:"auto",display:"flex",flexDirection:"column",gap:10,padding:"16px 20px"}}>
-                {chatMsgs.map((m,i)=>{
-                  const u=m.role==="user";
-                  return(
-                    <div key={i} style={{display:"flex",justifyContent:u?"flex-end":"flex-start",gap:8,alignItems:"flex-end"}}>
-                      {!u&&<div style={{width:26,height:26,borderRadius:7,background:C.grad,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,fontSize:11,fontWeight:700,color:"#fff"}}>N</div>}
-                      <div style={{borderRadius:u?"18px 18px 4px 18px":"18px 18px 18px 4px",padding:"10px 14px",maxWidth:"78%",fontSize:13,lineHeight:"1.6",background:u?C.grad:C.bgElevated,color:u?"#fff":C.textPrimary,border:u?"none":"1px solid "+C.border}}>{m.text}</div>
-                    </div>
-                  );
-                })}
-                {chatLoad&&(
-                  <div style={{display:"flex",gap:8,alignItems:"flex-end"}}>
-                    <div style={{width:26,height:26,borderRadius:7,background:C.grad,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,fontSize:11,color:"#fff"}}>N</div>
-                    <div style={{background:C.bgElevated,border:"1px solid "+C.border,borderRadius:"18px 18px 18px 4px",padding:"10px 14px",fontSize:13,color:C.textMuted}}>A pensar...</div>
-                  </div>
-                )}
-                <div ref={chatEnd}/>
-              </div>
-              <div style={{padding:"12px 20px",borderTop:"1px solid "+C.border,display:"flex",gap:8}}>
-                <input value={chatIn} onChange={e=>setChatIn(e.target.value)} onKeyDown={e=>e.key==="Enter"&&sendChat()} placeholder="Escreve a tua pergunta..." style={{flex:1,fontSize:13,borderRadius:10,border:"1px solid "+C.border,padding:"10px 14px",outline:"none",background:C.bgElevated,color:C.textPrimary}}/>
-                <Btn C={C} v="primary" onClick={sendChat} disabled={chatLoad} sx={{padding:"10px 18px"}}>Enviar</Btn>
-              </div>
-            </Card>
-            <div style={{display:"flex",flexDirection:"column",gap:10}}>
-              <Card C={C} sx={{padding:"14px 16px"}}>
-                <p style={{margin:"0 0 10px",fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:.6,color:C.textMuted}}>Sugestões rápidas</p>
-                {["Saldo projetado a 60 dias?","Clientes em atraso?","Faturas por aprovar?","Pasta com mais valor?","Taxa de pagamento a tempo?","Onde estou a gastar mais?"].map(s=>(
-                  <button key={s} onClick={()=>setChatIn(s)} style={{display:"block",width:"100%",textAlign:"left",background:C.bgElevated,border:"1px solid "+C.border,borderRadius:8,padding:"7px 11px",fontSize:12,color:C.textSecond,cursor:"pointer",marginBottom:5,fontFamily:"inherit"}}>{s}</button>
-                ))}
-              </Card>
-              <Card C={C} sx={{padding:"14px 16px"}}>
-                <p style={{margin:"0 0 8px",fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:.6,color:C.textMuted}}>Resumo</p>
-                {[{l:"Faturado",v:fmt(totFat)},{l:"Pago",v:fmt(totPag),c:C.purple},{l:"Emitido",v:fmt(totEmit)},{l:"Recebido",v:fmt(totRec),c:C.green},{l:"CF 30d",v:(cf30.net>=0?"+":"")+fmt(cf30.net),c:cf30.net>=0?C.green:C.red},{l:"Pontualidade",v:onTimeRate!=null?onTimeRate+"%":"—",c:onTimeRate!=null&&onTimeRate>=80?C.green:onTimeRate!=null?C.amber:C.textMuted}].map(m=>(
-                  <div key={m.l} style={{display:"flex",justifyContent:"space-between",padding:"5px 0",borderBottom:"1px solid "+C.border}}>
-                    <span style={{fontSize:12,color:C.textMuted}}>{m.l}</span>
-                    <span style={{fontSize:12,fontWeight:700,color:m.c||C.textPrimary}}>{m.v}</span>
-                  </div>
-                ))}
-              </Card>
-            </div>
-          </div>
+          <AssistentePage
+            C={C} chatMsgs={chatMsgs} chatIn={chatIn} setChatIn={setChatIn}
+            chatLoad={chatLoad} sendChat={sendChat} chatEnd={chatEnd}
+            totFat={totFat} totPag={totPag} totEmit={totEmit} totRec={totRec}
+            cf30={cf30} onTimeRate={onTimeRate}
+          />
         )}
       </main>
 
